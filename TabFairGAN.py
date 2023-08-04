@@ -1,11 +1,11 @@
-import torch
-import torch.nn.functional as f
 from torch import nn
 import pandas as pd
 import numpy as np
+import torch
 from collections import OrderedDict
 
 from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import QuantileTransformer
 from sklearn.model_selection import train_test_split
 import argparse
@@ -16,24 +16,25 @@ subparser = parser.add_subparsers(dest='command')
 with_fairness = subparser.add_parser('with_fairness')
 no_fairness = subparser.add_parser('no_fairness')
 
-with_fairness.add_argument("df_name", help="Reference dataframe", type=str)
-with_fairness.add_argument("S", help="Protected attribute", type=str)
-with_fairness.add_argument("Y", help="Label (decision)", type=str)
-with_fairness.add_argument("underprivileged_value", help="Value for underpriviledged group", type=str)
-with_fairness.add_argument("desirable_value", help="Desired label (decision)", type=str)
-with_fairness.add_argument("num_epochs", help="Total number of epochs", type=int)
-with_fairness.add_argument("batch_size", help="the batch size", type=int)
-with_fairness.add_argument("num_fair_epochs", help="number of fair training epochs", type=int)
-with_fairness.add_argument("lambda_val", help="lambda parameter", type=float)
-with_fairness.add_argument("fake_name", help="name of the produced csv file", type=str)
-with_fairness.add_argument("size_of_fake_data", help="how many data records to generate", type=int)
+with_fairness.add_argument("df_name", help="Reference dataframe", type=str )
+#with_fairness.add_argument("fairness", help="With or without fairness enforcement", type=str)
+with_fairness.add_argument("S", help="Protected attribute", type=str )
+with_fairness.add_argument("Y", help="Label (decision)", type=str )
+with_fairness.add_argument("underprivileged_value", help="Value for underpriviledged group", type=str )
+with_fairness.add_argument("desirable_value", help="Desired label (decision)", type=str )
+with_fairness.add_argument("num_epochs", help="Total number of epochs", type=int )
+with_fairness.add_argument("batch_size", help="the batch size", type=int )
+with_fairness.add_argument("num_fair_epochs", help="number of fair training epochs", type=int )
+with_fairness.add_argument("lambda_val", help="lambda parameter", type=float )
+with_fairness.add_argument("fake_name", help="name of the produced csv file", type=str )
+with_fairness.add_argument("size_of_fake_data", help="how many data records to generate", type=int )
 
 
-no_fairness.add_argument("df_name", help="Reference dataframe", type=str)
-no_fairness.add_argument("num_epochs", help="Total number of epochs", type=int)
-no_fairness.add_argument("batch_size", help="the batch size", type=int)
-no_fairness.add_argument("fake_name", help="name of the produced csv file", type=str)
-no_fairness.add_argument("size_of_fake_data", help="how many data records to generate", type=int)
+no_fairness.add_argument("df_name", help="Reference dataframe", type=str )
+no_fairness.add_argument("num_epochs", help="Total number of epochs", type=int )
+no_fairness.add_argument("batch_size", help="the batch size", type=int )
+no_fairness.add_argument("fake_name", help="name of the produced csv file", type=str )
+no_fairness.add_argument("size_of_fake_data", help="how many data records to generate", type=int )
 
 args = parser.parse_args()
 
@@ -137,7 +138,7 @@ if args.command == "with_fairness":
 
         train_ds = TensorDataset(data)
         train_dl = DataLoader(train_ds, batch_size = batch_size, drop_last=True)
-        return ohe, scaler, input_dim, discrete_columns, continuous_columns ,train_dl, data_train, data_test, S_start_index, Y_start_index, underpriv_index, priv_index, undesire_index, desire_index
+        return ohe, scaler, input_dim, discrete_columns, continuous_columns, train_dl, data_train, data_test, S_start_index, Y_start_index, underpriv_index, priv_index, undesire_index, desire_index
 
 elif args.command == "no_fairness":
     def prepare_data(df, batch_size):
@@ -309,6 +310,7 @@ def train(df, epochs=500, batch_size=64, fair_epochs=10, lamda=0.5):
 
     # loss = nn.BCELoss()
     critic_losses = []
+    generator_losses = []
     cur_step = 0
     for i in range(epochs):
         # j = 0
@@ -320,6 +322,10 @@ def train(df, epochs=500, batch_size=64, fair_epochs=10, lamda=0.5):
             print("training for fairness")
         for data in train_dl:
             data[0] = data[0].to(device)
+            
+            loss_of_epoch_G = 0
+            loss_of_epoch_D = 0
+            
             crit_repeat = 4
             mean_iteration_critic_loss = 0
             for k in range(crit_repeat):
